@@ -1,0 +1,7 @@
+.direnv
+
+# Binary
+rooster-importer
+
+# Google API stuff
+credentials.json
