@@ -2,7 +2,9 @@ package calendar
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,6 +16,73 @@ import (
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 )
+
+var (
+	//go:embed credentials.json
+	credentialContents []byte
+)
+
+type TokenReceivedMessage struct {
+	Code  string
+	Error error
+}
+
+type CalendarClient struct {
+	client *http.Client
+}
+
+func (c *CalendarClient) ListCalendars(ctx context.Context) ([]string, error) {
+	srv, err := calendar.NewService(ctx, option.WithHTTPClient(c.client))
+	if err != nil {
+		return nil, fmt.Errorf("Unable to retrieve Calendar client: %w", err)
+	}
+
+	list, err := srv.CalendarList.List().Do()
+
+	if err != nil {
+		return nil, fmt.Errorf("couldnt list calendars: %w", err)
+	}
+
+	calendars := []string{}
+
+	for _, item := range list.Items {
+		calendars = append(calendars, item.Id)
+	}
+
+	return calendars, nil
+}
+
+func StartWebserverForCallback(addr string, channel chan<- TokenReceivedMessage) {
+	handler := http.NewServeMux()
+
+	server := http.Server{
+		Addr:    addr,
+		Handler: handler,
+	}
+
+	handler.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		code := r.URL.Query().Get("code")
+
+		var msg TokenReceivedMessage
+
+		if code == "" {
+			msg = TokenReceivedMessage{
+				Error: errors.New("wrong callback URL, did not have a code parameter"),
+			}
+		} else {
+			msg = TokenReceivedMessage{
+				Code: code,
+			}
+		}
+
+		channel <- msg
+		server.Shutdown(context.Background())
+		fmt.Printf("Shutdown callback server")
+	})
+
+	server.ListenAndServe()
+
+}
 
 // Retrieve a token, saves the token, then returns the generated client.
 func getClient(config *oauth2.Config) *http.Client {
@@ -35,12 +104,16 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 	fmt.Printf("Go to the following link in your browser then type the "+
 		"authorization code: \n%v\n", authURL)
 
-	var authCode string
-	if _, err := fmt.Scan(&authCode); err != nil {
-		log.Fatalf("Unable to read authorization code: %v", err)
+	channel := make(chan TokenReceivedMessage, 1)
+	go StartWebserverForCallback("0.0.0.0:10321", channel)
+
+	msg := <-channel
+
+	if msg.Error != nil {
+		log.Fatal(msg.Error)
 	}
 
-	tok, err := config.Exchange(context.TODO(), authCode)
+	tok, err := config.Exchange(context.TODO(), msg.Code)
 	if err != nil {
 		log.Fatalf("Unable to retrieve token from web: %v", err)
 	}
@@ -60,14 +133,70 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 }
 
 // Saves a token to a file path.
-func saveToken(path string, token *oauth2.Token) {
+func saveToken(path string, token *oauth2.Token) error {
 	fmt.Printf("Saving credential file to: %s\n", path)
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		log.Fatalf("Unable to cache oauth token: %v", err)
+		return fmt.Errorf("cannot save token file: %s", err)
 	}
 	defer f.Close()
-	json.NewEncoder(f).Encode(token)
+	return json.NewEncoder(f).Encode(token)
+}
+
+func tokenLocation() (string, error) {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return "", err
+	}
+
+	importerdir := fmt.Sprintf("%s/rooster-importer", dir)
+
+	fi, err := os.Stat(importerdir)
+
+	if err != nil {
+		os.Mkdir(importerdir, 0775)
+	} else if !fi.Mode().IsDir() {
+		return "", errors.New(fmt.Sprintf("%s is not a directory", importerdir))
+	}
+
+	return fmt.Sprintf("%s/token.json", importerdir), nil
+}
+
+func LogOut() error {
+	filepath, err := tokenLocation()
+
+	if err != nil {
+		return err
+	}
+
+	return os.Remove(filepath)
+}
+
+func LogIn() (*CalendarClient, error) {
+	tokenLocation, err := tokenLocation()
+
+	if err != nil {
+		return nil, err
+	}
+
+	config, err := google.ConfigFromJSON(credentialContents, calendar.CalendarEventsScope)
+
+	if err != nil {
+		return nil, err
+	}
+
+	tok, err := tokenFromFile(tokenLocation)
+
+	if err != nil {
+		tok = getTokenFromWeb(config)
+		saveToken(tokenLocation, tok)
+	}
+
+	client := config.Client(context.Background(), tok)
+
+	return &CalendarClient{
+		client: client,
+	}, nil
 }
 
 func main() {
