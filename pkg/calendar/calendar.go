@@ -29,27 +29,55 @@ type TokenReceivedMessage struct {
 
 type CalendarClient struct {
 	client *http.Client
+	srv    *calendar.Service
 }
 
-func (c *CalendarClient) ListCalendars(ctx context.Context) ([]string, error) {
-	srv, err := calendar.NewService(ctx, option.WithHTTPClient(c.client))
-	if err != nil {
-		return nil, fmt.Errorf("Unable to retrieve Calendar client: %w", err)
-	}
+type CalendarItem struct {
+	Id    string
+	Name  string
+	Color string
+}
 
-	list, err := srv.CalendarList.List().Do()
+type CalendarEvent struct {
+	Title string
+	Start time.Time
+	End   time.Time
+}
+
+func (c *CalendarClient) ListCalendars(ctx context.Context) ([]CalendarItem, error) {
+	list, err := c.srv.CalendarList.List().Do()
 
 	if err != nil {
 		return nil, fmt.Errorf("couldnt list calendars: %w", err)
 	}
 
-	calendars := []string{}
+	items := []CalendarItem{}
 
 	for _, item := range list.Items {
-		calendars = append(calendars, item.Id)
+		items = append(items, CalendarItem{
+			Id:    item.Id,
+			Name:  item.Summary,
+			Color: item.BackgroundColor,
+		})
+	}
+	return items, nil
+}
+
+func (c *CalendarClient) CreateEvent(ctx context.Context, calendarId string, event *CalendarEvent) (*calendar.Event, error) {
+
+	googlecalendarevent := &calendar.Event{
+		Summary: event.Title,
+		Start:   &calendar.EventDateTime{DateTime: event.Start.Format(time.RFC3339), TimeZone: "Europe/Amsterdam"},
+		End:     &calendar.EventDateTime{DateTime: event.Start.Format(time.RFC3339), TimeZone: "Europe/Amsterdam"},
 	}
 
-	return calendars, nil
+	gcalevent, err := c.srv.Events.Insert(calendarId, googlecalendarevent).Context(ctx).Do()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event: %w", err)
+	}
+
+	return gcalevent, nil
 }
 
 func StartWebserverForCallback(addr string, channel chan<- TokenReceivedMessage) {
@@ -179,7 +207,7 @@ func LogIn() (*CalendarClient, error) {
 		return nil, err
 	}
 
-	config, err := google.ConfigFromJSON(credentialContents, calendar.CalendarEventsScope)
+	config, err := google.ConfigFromJSON(credentialContents, calendar.CalendarEventsScope, calendar.CalendarReadonlyScope)
 
 	if err != nil {
 		return nil, err
@@ -194,8 +222,14 @@ func LogIn() (*CalendarClient, error) {
 
 	client := config.Client(context.Background(), tok)
 
+	srv, err := calendar.NewService(context.TODO(), option.WithHTTPClient(client))
+	if err != nil {
+		return nil, fmt.Errorf("Unable to retrieve Calendar client: %w", err)
+	}
+
 	return &CalendarClient{
 		client: client,
+		srv:    srv,
 	}, nil
 }
 
@@ -207,7 +241,7 @@ func main() {
 	}
 
 	// If modifying these scopes, delete your previously saved token.json.
-	config, err := google.ConfigFromJSON(b, calendar.CalendarEventsScope)
+	config, err := google.ConfigFromJSON(b, calendar.CalendarEventsScope, calendar.CalendarReadonlyScope)
 	if err != nil {
 		log.Fatalf("Unable to parse client secret file to config: %v", err)
 	}

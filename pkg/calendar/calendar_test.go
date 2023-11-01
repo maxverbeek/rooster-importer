@@ -6,7 +6,20 @@ import (
 	"testing"
 )
 
+func TestLogout(t *testing.T) {
+	calendar.LogOut()
+}
+
 func TestLogin(t *testing.T) {
+	_, err := calendar.LogIn()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
+
+func TestList(t *testing.T) {
 	client, err := calendar.LogIn()
 
 	if err != nil {
