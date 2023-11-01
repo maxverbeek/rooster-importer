@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/pkg/browser"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
@@ -112,22 +112,8 @@ func StartWebserverForCallback(addr string, channel chan<- TokenReceivedMessage)
 
 }
 
-// Retrieve a token, saves the token, then returns the generated client.
-func getClient(config *oauth2.Config) *http.Client {
-	// The file token.json stores the user's access and refresh tokens, and is
-	// created automatically when the authorization flow completes for the first
-	// time.
-	tokFile := "token.json"
-	tok, err := tokenFromFile(tokFile)
-	if err != nil {
-		tok = getTokenFromWeb(config)
-		saveToken(tokFile, tok)
-	}
-	return config.Client(context.Background(), tok)
-}
-
 // Request a token from the web, then returns the retrieved token.
-func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
+func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 	fmt.Printf("Go to the following link in your browser then type the "+
 		"authorization code: \n%v\n", authURL)
@@ -135,17 +121,24 @@ func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 	channel := make(chan TokenReceivedMessage, 1)
 	go StartWebserverForCallback("0.0.0.0:10321", channel)
 
+	err := browser.OpenURL(authURL)
+
+	if err != nil {
+		return nil, err
+	}
+
 	msg := <-channel
 
 	if msg.Error != nil {
-		log.Fatal(msg.Error)
+		return nil, msg.Error
 	}
 
 	tok, err := config.Exchange(context.TODO(), msg.Code)
 	if err != nil {
-		log.Fatalf("Unable to retrieve token from web: %v", err)
+		return nil, fmt.Errorf("Unable to retrieve token from web: %w", err)
 	}
-	return tok
+	fmt.Println("received token")
+	return tok, nil
 }
 
 // Retrieves a token from a local file.
@@ -200,6 +193,13 @@ func LogOut() error {
 	return os.Remove(filepath)
 }
 
+func IsLoggedIn() bool {
+	path, _ := tokenLocation()
+	_, err := os.Stat(path)
+
+	return !os.IsNotExist(err)
+}
+
 func LogIn() (*CalendarClient, error) {
 	tokenLocation, err := tokenLocation()
 
@@ -216,7 +216,11 @@ func LogIn() (*CalendarClient, error) {
 	tok, err := tokenFromFile(tokenLocation)
 
 	if err != nil {
-		tok = getTokenFromWeb(config)
+		tok, err = getTokenFromWeb(config)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to get token from web: %w", err)
+		}
 		saveToken(tokenLocation, tok)
 	}
 
@@ -231,43 +235,4 @@ func LogIn() (*CalendarClient, error) {
 		client: client,
 		srv:    srv,
 	}, nil
-}
-
-func main() {
-	ctx := context.Background()
-	b, err := os.ReadFile("credentials.json")
-	if err != nil {
-		log.Fatalf("Unable to read client secret file: %v", err)
-	}
-
-	// If modifying these scopes, delete your previously saved token.json.
-	config, err := google.ConfigFromJSON(b, calendar.CalendarEventsScope, calendar.CalendarReadonlyScope)
-	if err != nil {
-		log.Fatalf("Unable to parse client secret file to config: %v", err)
-	}
-	client := getClient(config)
-
-	srv, err := calendar.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		log.Fatalf("Unable to retrieve Calendar client: %v", err)
-	}
-
-	t := time.Now().Format(time.RFC3339)
-	events, err := srv.Events.List("primary").ShowDeleted(false).
-		SingleEvents(true).TimeMin(t).MaxResults(10).OrderBy("startTime").Do()
-	if err != nil {
-		log.Fatalf("Unable to retrieve next ten of the user's events: %v", err)
-	}
-	fmt.Println("Upcoming events:")
-	if len(events.Items) == 0 {
-		fmt.Println("No upcoming events found.")
-	} else {
-		for _, item := range events.Items {
-			date := item.Start.DateTime
-			if date == "" {
-				date = item.Start.Date
-			}
-			fmt.Printf("%v (%v)\n", item.Summary, date)
-		}
-	}
 }

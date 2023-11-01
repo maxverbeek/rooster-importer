@@ -5,9 +5,19 @@ import (
 )
 
 type Application struct {
-	xlsxfile io.ReadCloser
+	xlsxfile           io.ReadCloser
+	selectedCalendarId string
+	uistate            UIState
 
 	guistuff chan interface{}
+}
+
+type UIState struct {
+	SelectedXlsxFile     string
+	IsLoggedIn           bool
+	SelectedCalendarName string
+	AvailableCalendars   []string
+	ImportButtonEnabled  bool
 }
 
 func NewApplication() *Application {
