@@ -53,6 +53,8 @@ func NewScheduleEvent(excelEntry string, date time.Time) (*ScheduleEvent, Conver
 		fallthrough
 	case "aanvraag vrij":
 		fallthrough
+	case "vak":
+		fallthrough
 	case "vk":
 		// Vakantie dag
 		event := ScheduleEvent{
