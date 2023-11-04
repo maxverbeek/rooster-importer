@@ -39,9 +39,10 @@ type CalendarItem struct {
 }
 
 type CalendarEvent struct {
-	Title string
-	Start time.Time
-	End   time.Time
+	Title  string
+	Start  time.Time
+	End    time.Time
+	AllDay bool
 }
 
 func (c *CalendarClient) ListCalendars(ctx context.Context) ([]CalendarItem, error) {
@@ -67,8 +68,15 @@ func (c *CalendarClient) CreateEvent(ctx context.Context, calendarId string, eve
 
 	googlecalendarevent := &calendar.Event{
 		Summary: event.Title,
-		Start:   &calendar.EventDateTime{DateTime: event.Start.Format(time.RFC3339), TimeZone: "Europe/Amsterdam"},
-		End:     &calendar.EventDateTime{DateTime: event.End.Format(time.RFC3339), TimeZone: "Europe/Amsterdam"},
+	}
+
+	if event.AllDay {
+		// For all day events, use the Date attribute
+		googlecalendarevent.Start = &calendar.EventDateTime{Date: event.Start.Format(time.DateOnly), TimeZone: "Europe/Amsterdam"}
+		googlecalendarevent.End = &calendar.EventDateTime{Date: event.End.Format(time.DateOnly), TimeZone: "Europe/Amsterdam"}
+	} else {
+		googlecalendarevent.Start = &calendar.EventDateTime{DateTime: event.Start.Format(time.RFC3339), TimeZone: "Europe/Amsterdam"}
+		googlecalendarevent.End = &calendar.EventDateTime{DateTime: event.End.Format(time.RFC3339), TimeZone: "Europe/Amsterdam"}
 	}
 
 	gcalevent, err := c.srv.Events.Insert(calendarId, googlecalendarevent).Context(ctx).Do()

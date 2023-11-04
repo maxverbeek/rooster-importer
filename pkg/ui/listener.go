@@ -44,6 +44,7 @@ func (ui *AppUI) SubscribeToApp(events <-chan interface{}) {
 			convertedCount := len(state.ConvertedEvents)
 			warningCount := len(state.WarningEvents)
 			freeDayCount := len(state.FreeDays)
+			skippedCount := len(state.SkippedDays)
 
 			previewlines := strings.Builder{}
 
@@ -79,8 +80,8 @@ func (ui *AppUI) SubscribeToApp(events <-chan interface{}) {
 				}
 			}
 
-			if freeDayCount > 0 {
-				previewlines.WriteString("\nFree dates:\n")
+			if freeDayCount > 0 || skippedCount > 0 {
+				previewlines.WriteString(fmt.Sprintf("\nFree dates (%d weekends not included):\n", skippedCount))
 
 				for i, date := range state.FreeDays {
 					previewlines.WriteString(fmt.Sprintf("%s  ", date.Format("02/01")))

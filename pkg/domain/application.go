@@ -24,6 +24,7 @@ type UIState struct {
 	ConvertedEvents []*ScheduleEvent
 	WarningEvents   []*ScheduleEvent
 	FreeDays        []time.Time
+	SkippedDays     []time.Time
 }
 
 func NewApplication() *Application {

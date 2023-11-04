@@ -10,6 +10,7 @@ type ScheduleEvent struct {
 	ScheduleType string
 	Start        time.Time
 	End          time.Time
+	AllDay       bool
 }
 
 func (e *ScheduleEvent) Summary() string {
@@ -22,6 +23,7 @@ const (
 	ConversionVrij      Conversion = "vrij"
 	ConversionConverted Conversion = "converted"
 	ConversionDefaulted Conversion = "defaulted"
+	ConversionSkipped   Conversion = "skipped"
 )
 
 func timeAtDay(date time.Time, hours, minutes int) time.Time {
@@ -44,24 +46,42 @@ func NewScheduleEvent(excelEntry string, date time.Time) (*ScheduleEvent, Conver
 	}
 
 	switch strings.ToLower(strings.Trim(excelEntry, " ")) {
+	case "":
+		// weekend dagen niet meenemen
+		return nil, ConversionSkipped
 	case "aanvraag verlof":
 		fallthrough
 	case "aanvraag vrij":
 		fallthrough
-	case "":
-		fallthrough
+	case "vk":
+		// Vakantie dag
+		event := ScheduleEvent{
+			ScheduleType: "Vakantiedag",
+			Start:        timeAtDay(date, 0, 0),
+			End:          timeAtDay(date.Add(24*time.Hour), 0, 0),
+			AllDay:       true,
+		}
+
+		return &event, ConversionVrij
 	case "c":
 		// Vrij/Compensatie
-		return nil, ConversionVrij
+		event := ScheduleEvent{
+			ScheduleType: "Compensatiedag",
+			Start:        timeAtDay(date, 0, 0),
+			End:          timeAtDay(date.Add(24*time.Hour), 0, 0),
+			AllDay:       true,
+		}
+
+		return &event, ConversionVrij
 
 	case "a":
 		fallthrough
 	case "wa":
 		// (weekend) avond dienst
 		event := ScheduleEvent{
-			ScheduleType: excelEntry,
+			ScheduleType: "Avond",
 			Start:        timeAtDay(date, 15, 30),
-			End:          timeAtDay(date, 23, 30),
+			End:          timeAtDay(date, 23, 59),
 		}
 
 		return &event, ConversionConverted
@@ -71,9 +91,9 @@ func NewScheduleEvent(excelEntry string, date time.Time) (*ScheduleEvent, Conver
 	case "wn":
 		// (weekend) nachtdienst
 		event := ScheduleEvent{
-			ScheduleType: excelEntry,
-			Start:        timeAtDay(date, 23, 0),
-			End:          timeAtDay(date.Add(time.Hour*24), 8, 0),
+			ScheduleType: "Nacht",
+			Start:        timeAtDay(date, 23, 30),
+			End:          timeAtDay(date.Add(time.Hour*24), 8, 30),
 		}
 
 		return &event, ConversionConverted
@@ -81,9 +101,9 @@ func NewScheduleEvent(excelEntry string, date time.Time) (*ScheduleEvent, Conver
 	case "wk":
 		// weekend kort
 		event := ScheduleEvent{
-			ScheduleType: excelEntry,
+			ScheduleType: "Weekend kort",
 			Start:        timeAtDay(date, 8, 0),
-			End:          timeAtDay(date, 12, 0),
+			End:          timeAtDay(date, 13, 0),
 		}
 
 		return &event, ConversionConverted

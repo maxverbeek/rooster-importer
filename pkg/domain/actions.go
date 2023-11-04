@@ -14,6 +14,11 @@ type Action func(*Application)
 
 func SelectedXlsxFileAction(file io.ReadCloser, filename string, username string) Action {
 	return func(a *Application) {
+		if username == "" {
+			a.guistuff <- errors.New("vul eerst een naam in")
+			return
+		}
+
 		a.xlsxfile = file
 		a.uistate.SelectedXlsxFile = filename
 
@@ -22,11 +27,6 @@ func SelectedXlsxFileAction(file io.ReadCloser, filename string, username string
 		a.uistate.FreeDays = []time.Time{}
 
 		a.guistuff <- NewState(a.uistate)
-
-		if username == "" {
-			a.guistuff <- errors.New("vul eerst een naam in")
-			return
-		}
 
 		entries, err := excelreader.FindScheduleEntries(file, username)
 
@@ -38,17 +38,24 @@ func SelectedXlsxFileAction(file io.ReadCloser, filename string, username string
 		events := []*ScheduleEvent{}
 		free := []time.Time{}
 		warnings := []*ScheduleEvent{}
+		skipped := []time.Time{}
 
 		for _, entry := range entries {
 			event, conversion := NewScheduleEvent(entry.Shift, entry.Date)
 
-			if conversion == ConversionVrij {
+			if conversion == ConversionSkipped {
+				// Don't make events for things like empty weekend slots
+				skipped = append(skipped, entry.Date)
+				continue
+			}
+
+			events = append(events, event)
+
+			switch conversion {
+			case ConversionVrij:
 				free = append(free, entry.Date)
-			} else {
-				events = append(events, event)
-				if conversion == ConversionDefaulted {
-					warnings = append(warnings, event)
-				}
+			case ConversionDefaulted:
+				warnings = append(warnings, event)
 			}
 		}
 
@@ -56,6 +63,7 @@ func SelectedXlsxFileAction(file io.ReadCloser, filename string, username string
 		a.uistate.ConvertedEvents = events
 		a.uistate.WarningEvents = warnings
 		a.uistate.FreeDays = free
+		a.uistate.SkippedDays = skipped
 
 		a.guistuff <- NewState(a.uistate)
 	}
@@ -146,9 +154,10 @@ func GuiAttachedAction() Action {
 
 func scheduleToCalendarEvent(sched *ScheduleEvent) calendar.CalendarEvent {
 	return calendar.CalendarEvent{
-		Title: sched.ScheduleType,
-		Start: sched.Start,
-		End:   sched.End,
+		Title:  sched.ScheduleType,
+		Start:  sched.Start,
+		End:    sched.End,
+		AllDay: sched.AllDay,
 	}
 }
 
