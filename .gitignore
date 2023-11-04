@@ -5,3 +5,7 @@ rooster-importer
 
 # Google API stuff
 credentials.json
+
+# Fyne cross compile stuff
+Icon.png
+fyne-cross
