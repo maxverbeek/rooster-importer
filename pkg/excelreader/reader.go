@@ -81,6 +81,11 @@ func findDateRow(row []string) (map[int]time.Time, bool) {
 	for x, cell := range row {
 		parsed, err := time.Parse("2006-1-2", cell)
 
+		if err != nil {
+			// try day-month-year format as well
+			parsed, err = time.Parse("2-1-2006", cell)
+		}
+
 		if err == nil {
 			datemap[x] = parsed
 			datelocations = append(datelocations, x)
