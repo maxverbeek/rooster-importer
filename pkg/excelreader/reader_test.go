@@ -16,7 +16,7 @@ func TestHandleSelectedFile(t *testing.T) {
 		t.Error(err)
 	}
 
-	entries, err := excelreader.HandleSelectedFile(file, "Nerea")
+	entries, err := excelreader.FindScheduleEntries(file, "Nerea")
 
 	for _, entry := range entries {
 		fmt.Printf("%s: %s\n", entry.Date.Format(time.DateOnly), entry.Shift)

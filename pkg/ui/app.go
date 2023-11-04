@@ -18,11 +18,15 @@ type AppUI struct {
 	uploadLabel *widget.Label
 	nameEntry   *widget.Entry
 	calSelect   *widget.Select
+	preview     *widget.TextGrid
 
 	loginButton  *widget.Button
 	logoutButton *widget.Button
 
-	events chan domain.Action
+	createEventsButton *widget.Button
+
+	events   chan domain.Action
+	progress *widget.ProgressBar
 }
 
 type XlsxHandler interface {
@@ -46,6 +50,7 @@ func CreateAppUI() *AppUI {
 	ui.mainWindow.SetContent(container.NewVBox(
 		explainerLabel,
 		uploadBox,
+		widget.NewSeparator(),
 		googleCalendarBox,
 	))
 
@@ -61,7 +66,12 @@ func (u *AppUI) createUploadBox() *fyne.Container {
 	namelabel := widget.NewLabel("Naam")
 	nameform := container.New(layout.NewFormLayout(), namelabel, u.nameEntry)
 
-	uploadBox := container.NewVBox(nameform, uploader)
+	u.preview = widget.NewTextGrid()
+	winwidth, _ := u.mainWindow.Canvas().Size().Components()
+	previewScroller := container.NewVScroll(u.preview)
+	previewScroller.SetMinSize(fyne.NewSize(winwidth, 200))
+
+	uploadBox := container.NewVBox(nameform, uploader, previewScroller)
 
 	return container.NewPadded(uploadBox)
 }
@@ -86,7 +96,23 @@ func (u *AppUI) createGoogleCalendarBox() *fyne.Container {
 
 	u.calSelect.Disable()
 
-	return container.NewPadded(container.NewVBox(label, buttonBox, u.calSelect))
+	u.createEventsButton = widget.NewButton("Create Events", func() {
+
+		u.createEventsButton.Disable()
+
+		dialog.NewConfirm("Start upload?", "Start uploading? Is the calendar correct?", func(b bool) {
+			if b {
+				u.events <- domain.ImportEntriesToCalendar()
+			}
+		}, u.mainWindow).Show()
+	})
+
+	u.createEventsButton.Disable()
+
+	u.progress = widget.NewProgressBar()
+	u.progress.Hide()
+
+	return container.NewPadded(container.NewVBox(label, buttonBox, u.calSelect, u.createEventsButton, u.progress))
 }
 
 func (u *AppUI) Events() <-chan domain.Action {
@@ -96,7 +122,7 @@ func (u *AppUI) Events() <-chan domain.Action {
 func (u *AppUI) clickUploadButton() {
 	fileOpen := dialog.NewFileOpen(func(uc fyne.URIReadCloser, err error) {
 		if uc != nil {
-			u.events <- domain.SelectedXlsxFileAction(uc, uc.URI().Path())
+			u.events <- domain.SelectedXlsxFileAction(uc, uc.URI().Path(), u.nameEntry.Text)
 		} else {
 			u.uploadLabel.SetText(NO_FILE_SELECTED)
 		}

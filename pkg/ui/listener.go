@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"rooster-importer/pkg/domain"
+	"strings"
 
 	"fyne.io/fyne/v2/dialog"
 )
@@ -37,6 +38,79 @@ func (ui *AppUI) SubscribeToApp(events <-chan interface{}) {
 				ui.calSelect.Enable()
 			} else {
 				ui.calSelect.Disable()
+			}
+
+			// Build text block for event summary
+			convertedCount := len(state.ConvertedEvents)
+			warningCount := len(state.WarningEvents)
+			freeDayCount := len(state.FreeDays)
+
+			previewlines := strings.Builder{}
+
+			if convertedCount+freeDayCount > 0 {
+				previewlines.WriteString(fmt.Sprintf("Schedule conversion summary:\nNew Schedule events: %d", convertedCount))
+
+				if warningCount > 0 {
+					previewlines.WriteString(fmt.Sprintf(" (%d not sure of time)", warningCount))
+				}
+
+				previewlines.WriteString(fmt.Sprintf("\nEvents free: %d\nTotal things processed: %d\n", freeDayCount, convertedCount+freeDayCount))
+			}
+
+			// Build a preview of the first and last events to be added to the calendar
+			if convertedCount > 0 {
+				previewlines.WriteString("\nFirst event:\n")
+				previewlines.WriteString(state.ConvertedEvents[0].Summary())
+				previewlines.WriteString("\n")
+			}
+
+			if convertedCount > 1 {
+				previewlines.WriteString("\nLast event:\n")
+				previewlines.WriteString(state.ConvertedEvents[convertedCount-1].Summary())
+				previewlines.WriteString("\n")
+			}
+
+			if warningCount > 0 {
+				previewlines.WriteString("\nEvents where time is not explicit:\n")
+
+				for _, warning := range state.WarningEvents {
+					previewlines.WriteString(warning.Summary())
+					previewlines.WriteString("\n")
+				}
+			}
+
+			if freeDayCount > 0 {
+				previewlines.WriteString("\nFree dates:\n")
+
+				for i, date := range state.FreeDays {
+					previewlines.WriteString(fmt.Sprintf("%s  ", date.Format("02/01")))
+
+					if i%7 == 6 {
+						previewlines.WriteString("\n")
+					}
+				}
+			}
+
+			ui.preview.SetText(previewlines.String())
+
+			if state.IsLoggedIn && len(state.ConvertedEvents) > 0 && state.SelectedCalendarName != "" {
+				ui.createEventsButton.SetText(fmt.Sprintf("Create %d events in %s", len(state.ConvertedEvents), state.SelectedCalendarName))
+				ui.createEventsButton.Enable()
+			} else {
+				ui.createEventsButton.SetText("Create Events")
+				ui.createEventsButton.Disable()
+			}
+
+		case domain.Progress:
+			if ui.progress.Hidden {
+				ui.progress.Show()
+			}
+
+			ui.progress.SetValue(float64(e.Done) / float64(e.Total))
+
+			if e.Done == e.Total {
+				ui.createEventsButton.Enable()
+				ui.progress.Hide()
 			}
 
 		default:

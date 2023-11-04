@@ -68,7 +68,7 @@ func (c *CalendarClient) CreateEvent(ctx context.Context, calendarId string, eve
 	googlecalendarevent := &calendar.Event{
 		Summary: event.Title,
 		Start:   &calendar.EventDateTime{DateTime: event.Start.Format(time.RFC3339), TimeZone: "Europe/Amsterdam"},
-		End:     &calendar.EventDateTime{DateTime: event.Start.Format(time.RFC3339), TimeZone: "Europe/Amsterdam"},
+		End:     &calendar.EventDateTime{DateTime: event.End.Format(time.RFC3339), TimeZone: "Europe/Amsterdam"},
 	}
 
 	gcalevent, err := c.srv.Events.Insert(calendarId, googlecalendarevent).Context(ctx).Do()
@@ -78,6 +78,32 @@ func (c *CalendarClient) CreateEvent(ctx context.Context, calendarId string, eve
 	}
 
 	return gcalevent, nil
+}
+
+func (c *CalendarClient) FindCalendarIdByName(ctx context.Context, calendarName string) (string, error) {
+	calendars, err := c.ListCalendars(ctx)
+
+	if err != nil {
+		return "", err
+	}
+
+	id := ""
+	occurrences := 0
+
+	for _, item := range calendars {
+		if calendarName == item.Name {
+			id = item.Id
+			occurrences += 1
+		}
+	}
+
+	if occurrences == 1 {
+		return id, nil
+	} else if occurrences == 0 {
+		return "", errors.New(fmt.Sprintf("calendar name %s not found", calendarName))
+	} else {
+		return "", errors.New(fmt.Sprintf("calendar name %s is not unique (%d occurrences)", calendarName, occurrences))
+	}
 }
 
 func StartWebserverForCallback(addr string, channel chan<- TokenReceivedMessage) {

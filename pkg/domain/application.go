@@ -2,12 +2,14 @@ package domain
 
 import (
 	"io"
+	"time"
 )
 
 type Application struct {
-	xlsxfile           io.ReadCloser
-	selectedCalendarId string
-	uistate            UIState
+	xlsxfile             io.ReadCloser
+	selectedCalendarName string
+	uistate              UIState
+	eventsForCalendar    []*ScheduleEvent
 
 	guistuff chan interface{}
 }
@@ -18,6 +20,10 @@ type UIState struct {
 	SelectedCalendarName string
 	AvailableCalendars   []string
 	ImportButtonEnabled  bool
+
+	ConvertedEvents []*ScheduleEvent
+	WarningEvents   []*ScheduleEvent
+	FreeDays        []time.Time
 }
 
 func NewApplication() *Application {

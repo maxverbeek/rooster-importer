@@ -16,7 +16,7 @@ type ScheduleEntry struct {
 	Shift string
 }
 
-func HandleSelectedFile(reader io.ReadCloser, name string) ([]ScheduleEntry, error) {
+func FindScheduleEntries(reader io.ReadCloser, name string) ([]ScheduleEntry, error) {
 	file, err := excelize.OpenReader(reader)
 
 	if err != nil {
