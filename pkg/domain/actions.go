@@ -65,6 +65,8 @@ func SelectedXlsxFileAction(file io.ReadCloser, filename string, username string
 		a.uistate.FreeDays = free
 		a.uistate.SkippedDays = skipped
 
+		a.DeduplicateEvents()
+
 		a.guistuff <- NewState(a.uistate)
 	}
 }
@@ -72,7 +74,41 @@ func SelectedXlsxFileAction(file io.ReadCloser, filename string, username string
 func SelectCalendarAction(calendarName string) Action {
 	return func(a *Application) {
 		a.selectedCalendarName = calendarName
+
+		client, err := calendar.LogIn()
+
+		if err != nil {
+			a.guistuff <- fmt.Errorf("cannot log into google calendar: %w", err)
+			return
+		}
+
+		ctx := context.Background()
+
+		calendarId, err := client.FindCalendarIdByName(ctx, a.selectedCalendarName)
+
+		if err != nil {
+			a.guistuff <- fmt.Errorf("cannot find calendar ID for calendar %s: %w", a.selectedCalendarName, err)
+			return
+		}
+
+		a.selectedCalendarId = calendarId
 		a.uistate.SelectedCalendarName = calendarName
+		a.guistuff <- NewState(a.uistate)
+
+		events, err := client.ListEvents(ctx, calendarId)
+
+		if err != nil {
+			a.guistuff <- fmt.Errorf("couldn't get existing events in calendar: %w", err)
+		}
+
+		a.eventsInCalendar = make([]*ScheduleEvent, len(events))
+
+		for i, e := range events {
+			a.eventsInCalendar[i] = calendarToScheduleEvent(&e)
+		}
+
+		a.DeduplicateEvents()
+
 		a.guistuff <- NewState(a.uistate)
 	}
 }
@@ -161,6 +197,15 @@ func scheduleToCalendarEvent(sched *ScheduleEvent) calendar.CalendarEvent {
 	}
 }
 
+func calendarToScheduleEvent(cal *calendar.CalendarEvent) *ScheduleEvent {
+	return &ScheduleEvent{
+		ScheduleType: cal.Title,
+		Start:        cal.Start,
+		End:          cal.End,
+		AllDay:       cal.AllDay,
+	}
+}
+
 func ImportEntriesToCalendar() Action {
 	return func(a *Application) {
 
@@ -173,26 +218,19 @@ func ImportEntriesToCalendar() Action {
 
 		ctx := context.Background()
 
-		calendarId, err := client.FindCalendarIdByName(ctx, a.selectedCalendarName)
-
-		if err != nil {
-			a.guistuff <- fmt.Errorf("cannot find calendar ID for calendar %s: %w", a.selectedCalendarName, err)
-			return
-		}
-
 		errors := []error{}
 
-		for i, event := range a.eventsForCalendar {
+		for i, event := range a.newEventsForCalendar {
 			calEvent := scheduleToCalendarEvent(event)
 
-			_, err := client.CreateEvent(ctx, calendarId, &calEvent)
+			_, err := client.CreateEvent(ctx, a.selectedCalendarId, &calEvent)
 
 			if err != nil {
 				fmt.Printf("error in calendar event create: %s\n", err.Error())
 				errors = append(errors, err)
 			}
 
-			a.guistuff <- Progress{Done: i + 1, Total: len(a.eventsForCalendar)}
+			a.guistuff <- Progress{Done: i + 1, Total: len(a.newEventsForCalendar)}
 		}
 
 		if len(errors) != 0 {
@@ -200,6 +238,6 @@ func ImportEntriesToCalendar() Action {
 			return
 		}
 
-		a.guistuff <- Information(fmt.Sprintf("Successfully imported %d events", len(a.eventsForCalendar)))
+		a.guistuff <- Information(fmt.Sprintf("Successfully imported %d events", len(a.newEventsForCalendar)))
 	}
 }

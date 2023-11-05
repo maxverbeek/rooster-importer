@@ -30,6 +30,10 @@ func timeAtDay(date time.Time, hours, minutes int) time.Time {
 	return time.Date(date.Year(), date.Month(), date.Day(), hours, minutes, 0, 0, time.Local)
 }
 
+func dateToTime(date time.Time) time.Time {
+	return time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+}
+
 func NewScheduleEvent(excelEntry string, date time.Time) (*ScheduleEvent, Conversion) {
 	if strings.HasPrefix(excelEntry, "i") {
 		// Try removing the i (could mean inwerken) prefix
@@ -59,8 +63,8 @@ func NewScheduleEvent(excelEntry string, date time.Time) (*ScheduleEvent, Conver
 		// Vakantie dag
 		event := ScheduleEvent{
 			ScheduleType: "Vakantiedag",
-			Start:        timeAtDay(date, 0, 0),
-			End:          timeAtDay(date.Add(24*time.Hour), 0, 0),
+			Start:        dateToTime(date),
+			End:          dateToTime(date.Add(24 * time.Hour)),
 			AllDay:       true,
 		}
 
@@ -69,8 +73,8 @@ func NewScheduleEvent(excelEntry string, date time.Time) (*ScheduleEvent, Conver
 		// Vrij/Compensatie
 		event := ScheduleEvent{
 			ScheduleType: "Compensatiedag",
-			Start:        timeAtDay(date, 0, 0),
-			End:          timeAtDay(date.Add(24*time.Hour), 0, 0),
+			Start:        dateToTime(date),
+			End:          dateToTime(date.Add(24 * time.Hour)),
 			AllDay:       true,
 		}
 

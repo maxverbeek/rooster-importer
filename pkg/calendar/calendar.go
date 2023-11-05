@@ -64,10 +64,70 @@ func (c *CalendarClient) ListCalendars(ctx context.Context) ([]CalendarItem, err
 	return items, nil
 }
 
+func convertGoogleEventToCalendarEvent(event *calendar.Event) (*CalendarEvent, error) {
+	var err error
+
+	calendarEvent := CalendarEvent{
+		Title: event.Summary,
+	}
+
+	if event.Start == nil || event.End == nil {
+		return nil, fmt.Errorf("event %s has no start or end", event.Summary)
+	}
+
+	if event.Start.Date != "" && event.End.Date != "" {
+		// All day event
+		calendarEvent.AllDay = true
+
+		calendarEvent.Start, err = time.Parse(time.DateOnly, event.Start.Date)
+
+		if err != nil {
+			return nil, fmt.Errorf("couldnt parse start time of event (%s): %w", event.Summary, err)
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("cannot decode timezone: %w", err)
+		}
+
+		calendarEvent.End, err = time.Parse(time.DateOnly, event.End.Date)
+
+		if err != nil {
+			return nil, fmt.Errorf("couldnt parse end time of event (%s): %w", event.Summary, err)
+		}
+	} else if event.Start.DateTime != "" && event.End.DateTime != "" {
+		// Not all day
+		calendarEvent.AllDay = false
+		calendarEvent.Start, err = time.Parse(time.RFC3339, event.Start.DateTime)
+
+		if err != nil {
+			return nil, fmt.Errorf("couldnt parse start time of event (%s): %w", event.Summary, err)
+		}
+
+		calendarEvent.End, err = time.Parse(time.RFC3339, event.End.DateTime)
+
+		if err != nil {
+			return nil, fmt.Errorf("couldnt parse end time of event (%s): %w", event.Summary, err)
+		}
+	} else {
+		return nil, fmt.Errorf("not sure what type of event %s is", event.Summary)
+	}
+
+	return &calendarEvent, nil
+}
+
 func (c *CalendarClient) ListEvents(ctx context.Context, calendarId string) ([]CalendarEvent, error) {
-	googleEvents := []*calendar.Event{}
+	events := []CalendarEvent{}
+
 	err := c.srv.Events.List(calendarId).Context(ctx).Pages(ctx, func(e *calendar.Events) error {
-		googleEvents = append(googleEvents, e.Items...)
+		if e.Items != nil {
+			for _, item := range e.Items {
+				event, err := convertGoogleEventToCalendarEvent(item)
+				if err != nil {
+					return err
+				}
+				events = append(events, *event)
+			}
+		}
 
 		return nil
 	})
@@ -76,62 +136,7 @@ func (c *CalendarClient) ListEvents(ctx context.Context, calendarId string) ([]C
 		return nil, fmt.Errorf("couldn't get calendar events: %w", err)
 	}
 
-	ourEvents := make([]CalendarEvent, len(googleEvents))
-
-	for i, event := range googleEvents {
-		calendarEvent := CalendarEvent{
-			Title: event.Summary,
-		}
-		if event.Start.Date != "" && event.End.Date != "" {
-
-			// All day event
-			calendarEvent.AllDay = true
-
-			locationStart, err := time.LoadLocation(event.Start.TimeZone)
-
-			if err != nil {
-				return nil, fmt.Errorf("cannot decode timezone: %w", err)
-			}
-
-			calendarEvent.Start, err = time.ParseInLocation(time.DateOnly, event.Start.Date, locationStart)
-
-			if err != nil {
-				return nil, fmt.Errorf("couldnt parse start time of event %d (%s): %w", i, event.Summary, err)
-			}
-
-			locationEnd, err := time.LoadLocation(event.End.TimeZone)
-
-			if err != nil {
-				return nil, fmt.Errorf("cannot decode timezone: %w", err)
-			}
-
-			calendarEvent.End, err = time.ParseInLocation(time.DateOnly, event.End.Date, locationEnd)
-
-			if err != nil {
-				return nil, fmt.Errorf("couldnt parse end time of event %d (%s): %w", i, event.Summary, err)
-			}
-		} else if event.Start.DateTime != "" && event.End.DateTime != "" {
-			// Not all day
-			calendarEvent.AllDay = false
-			calendarEvent.Start, err = time.Parse(time.RFC3339, event.Start.DateTime)
-
-			if err != nil {
-				return nil, fmt.Errorf("couldnt parse start time of event %d (%s): %w", i, event.Summary, err)
-			}
-
-			calendarEvent.End, err = time.Parse(time.RFC3339, event.End.DateTime)
-
-			if err != nil {
-				return nil, fmt.Errorf("couldnt parse end time of event %d (%s): %w", i, event.Summary, err)
-			}
-		} else {
-			return nil, fmt.Errorf("not sure what type of event %d: %s is", i, event.Summary)
-		}
-
-		ourEvents[i] = calendarEvent
-	}
-
-	return ourEvents, nil
+	return events, nil
 }
 
 func (c *CalendarClient) CreateEvent(ctx context.Context, calendarId string, event *CalendarEvent) (*calendar.Event, error) {

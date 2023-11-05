@@ -45,6 +45,7 @@ func (ui *AppUI) SubscribeToApp(events <-chan interface{}) {
 			warningCount := len(state.WarningEvents)
 			freeDayCount := len(state.FreeDays)
 			skippedCount := len(state.SkippedDays)
+			newEventCount := len(state.EventsNotAlreadyInCalendar)
 
 			previewlines := strings.Builder{}
 
@@ -60,15 +61,25 @@ func (ui *AppUI) SubscribeToApp(events <-chan interface{}) {
 
 			// Build a preview of the first and last events to be added to the calendar
 			if convertedCount > 0 {
-				previewlines.WriteString("\nFirst event:\n")
+				previewlines.WriteString("\nFirst event: ")
 				previewlines.WriteString(state.ConvertedEvents[0].Summary())
-				previewlines.WriteString("\n")
 			}
 
 			if convertedCount > 1 {
-				previewlines.WriteString("\nLast event:\n")
+				previewlines.WriteString("\nLast event: ")
 				previewlines.WriteString(state.ConvertedEvents[convertedCount-1].Summary())
-				previewlines.WriteString("\n")
+			}
+
+			previewlines.WriteString("\n")
+
+			previewlines.WriteString(fmt.Sprintf("\nNew events: %d\n", newEventCount))
+
+			if newEventCount > 0 {
+				previewlines.WriteString(fmt.Sprintf("First event: %s\n", state.EventsNotAlreadyInCalendar[0].Summary()))
+
+				if newEventCount > 1 {
+					previewlines.WriteString(fmt.Sprintf("Last event: %s\n", state.EventsNotAlreadyInCalendar[newEventCount-1].Summary()))
+				}
 			}
 
 			if warningCount > 0 {
@@ -94,8 +105,8 @@ func (ui *AppUI) SubscribeToApp(events <-chan interface{}) {
 
 			ui.preview.SetText(previewlines.String())
 
-			if state.IsLoggedIn && len(state.ConvertedEvents) > 0 && state.SelectedCalendarName != "" {
-				ui.createEventsButton.SetText(fmt.Sprintf("Create %d events in %s", len(state.ConvertedEvents), state.SelectedCalendarName))
+			if state.IsLoggedIn && len(state.EventsNotAlreadyInCalendar) > 0 && state.SelectedCalendarName != "" {
+				ui.createEventsButton.SetText(fmt.Sprintf("Create %d events in %s", len(state.EventsNotAlreadyInCalendar), state.SelectedCalendarName))
 				ui.createEventsButton.Enable()
 			} else {
 				ui.createEventsButton.SetText("Create Events")
