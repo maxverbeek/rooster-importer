@@ -86,7 +86,7 @@ func NewScheduleEvent(excelEntry string, date time.Time) (*ScheduleEvent, Conver
 		// (weekend) avond dienst
 		event := ScheduleEvent{
 			ScheduleType: "Avond",
-			Start:        timeAtDay(date, 15, 30),
+			Start:        timeAtDay(date, 16, 0),
 			End:          timeAtDay(date, 23, 59),
 		}
 
