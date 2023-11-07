@@ -27,6 +27,24 @@ func TestHandleSelectedFile(t *testing.T) {
 	}
 }
 
+func TestHandleWeirdDates(t *testing.T) {
+	file, err := os.Open("/home/max/Downloads/Rooster 2024 eerste kwartaal v3.xlsx")
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	entries, err := excelreader.FindScheduleEntries(file, "Nerea")
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	for _, entry := range entries {
+		fmt.Printf("%s: %s\n", entry.Date.Format(time.DateOnly), entry.Shift)
+	}
+}
+
 func TestDateParsing(t *testing.T) {
 	parsed, err := time.Parse("2006-1-2", "2023-1-17")
 

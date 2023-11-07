@@ -16,6 +16,8 @@ type ScheduleEntry struct {
 	Shift string
 }
 
+var DateParseError error = errors.New("couldn't parse date")
+
 func FindScheduleEntries(reader io.ReadCloser, name string) ([]ScheduleEntry, error) {
 	file, err := excelize.OpenReader(reader)
 
@@ -37,12 +39,12 @@ func FindScheduleEntries(reader io.ReadCloser, name string) ([]ScheduleEntry, er
 
 	var datemapping map[int]time.Time
 
-	for _, row := range rows {
+	for rowidx, row := range rows {
 		if len(row) == 0 {
 			continue
 		}
 
-		if mapping, ok := findDateRow(row); ok {
+		if mapping, ok := findDateRow(row, rowidx, file, sheets[0]); ok {
 			datemapping = mapping
 		}
 
@@ -74,12 +76,19 @@ func FindScheduleEntries(reader io.ReadCloser, name string) ([]ScheduleEntry, er
 	return nil, errors.New("nothing found")
 }
 
-func findDateRow(row []string) (map[int]time.Time, bool) {
+func findDateRow(row []string, rowidx int, file *excelize.File, sheetName string) (map[int]time.Time, bool) {
 	datemap := make(map[int]time.Time)
 	datelocations := []int{}
 
 	for x, cell := range row {
-		parsed, err := time.Parse("2006-1-2", cell)
+
+		// first try interpreting the date format from the stylesheet of the excel file
+		parsed, err := parseUsingStylesheet(x, rowidx, file, sheetName, cell)
+
+		if err != nil {
+			// try yyyy-mm-dd
+			parsed, err = time.Parse("2006-1-2", cell)
+		}
 
 		if err != nil {
 			// try day-month-year format as well
@@ -103,4 +112,54 @@ func findDateRow(row []string) (map[int]time.Time, bool) {
 	}
 
 	return datemap, true
+}
+
+func parseUsingStylesheet(col, row int, file *excelize.File, sheetName, content string) (time.Time, error) {
+	cellname, err := excelize.CoordinatesToCellName(col+1, row+1, false)
+
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	style, err := file.GetCellStyle(sheetName, cellname)
+
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	if stylesheet := file.Styles.CellXfs.Xf; style < len(stylesheet) {
+		var format string
+
+		if stylesheet[style].NumFmtID == nil {
+			return time.Time{}, DateParseError
+		}
+
+		switch *stylesheet[style].NumFmtID {
+		case 14:
+			//"mm-dd-yy"
+			format = "01-02-06"
+		case 15:
+			//"d-mmm-yy"
+			format = "02-Jan-06"
+		case 16:
+			//"d-mmm"
+			format = "02-Jan"
+		case 17:
+			//"mmm-yy"
+			format = "Jan-06"
+		case 22:
+			//"m/d/yy h:mm"
+			format = "1/2/06 15:04"
+		default:
+			return time.Time{}, DateParseError
+		}
+
+		t, err := time.Parse(format, content)
+
+		if err == nil {
+			return t, nil
+		}
+	}
+
+	return time.Time{}, DateParseError
 }
