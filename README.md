@@ -30,8 +30,9 @@ It expects your Excel file to follow a similar structure as the table above:
       know what that means as I do not use Excel. The Excel formats that are supported are:
        - mm-dd-yy
        - d-mmm-yy (02-Jan-06)
-       - m/d/yy h:mm And two fallback formats are given, which it will try in case you cannot figure out the Excel
-         formatting like a normal person:
+       - m/d/yy h:mm
+       And two fallback formats are given, which it will try in case you cannot figure out the Excel
+       formatting like a normal person:
        - yyyy-m-d
        - d-m-yyyy
  - The first column will eventually contain a name. This name will be searched for via case sensitive prefix matching.
