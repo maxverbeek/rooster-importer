@@ -3,6 +3,8 @@
 The following application is a tool to read Micro$oft Excel files in a specific format, and find a particular row (that
 starts with a name) of which to imterpret cells as calendar events.
 
+![Preview image](/docs/preview.png)
+
 ## Expected Excel file structure
 
 The following table is an example of what the Excel file should look like
@@ -117,3 +119,5 @@ sequenceDiagram
 - Add the ability to customize the cellcontent <-> event mapping table
 - Refactor the message passing from domain to UI so that the UI is less coupled to the domain and vice-versa
 - Add some fixtures for testing the reader module
+- Don't use `context.TODO()` but instead propagate contexts like you're supposed to
+- Make sure the UI state doesn't get messed up (not sure how yet)
