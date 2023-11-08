@@ -115,4 +115,5 @@ sequenceDiagram
 # Future work
 
 - Add the ability to customize the cellcontent <-> event mapping table
-- More thorough testing
+- Refactor the message passing from domain to UI so that the UI is less coupled to the domain and vice-versa
+- Add some fixtures for testing the reader module
