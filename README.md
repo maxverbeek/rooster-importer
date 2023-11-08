@@ -5,6 +5,22 @@ starts with a name) of which to imterpret cells as calendar events.
 
 ![Preview image](/docs/preview.png)
 
+## Compiling
+
+This application can be built with `go build .`, or run with `go run main.go`. A Nix flake is provided with the required
+X11 binaries. The idea is that this is also runnable on windows. Cross compilation can be done with `fyne-cross`. I used
+the following command:
+
+```
+fyne-cross windows --app-id Rooster.Fixer --icon Icon.png
+
+# Using the build script that is also provided in the flake.nix:
+compile-windows
+```
+
+Note that you will get warnings about how dangerous it is to run untrusted applications when you try to execute this (as
+it is not signed).
+
 ## Expected Excel file structure
 
 The following table is an example of what the Excel file should look like
@@ -63,7 +79,9 @@ needs the following scopes:
 
 Create a new app in the Google Cloud console, and choose the OAuth2 setup with these scopes. After downloading the
 credentials the return URL needs to be modified from `http://localhost` to `http://localhost:10321` in order to not
-require firewall configuration for receiving the user's token.
+require firewall configuration for receiving the user's token. **Th credentials must** be placed in a JSON file at
+`./pkg/calendar/credentials.json`. Failing to do so will yield compile errors, as this file gets embedded in the final
+application. See `./pkg/calendar/calendar.go`.
 
 ## Application design
 

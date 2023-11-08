@@ -19,12 +19,20 @@
           };
           vendorHash = "sha256-68WD7kij+au0cwnnbB1U1OA3Bb8vjkdPbhV6aiQcjgo=";
         };
+        buildScript = pkgs.writeScriptBin "compile-windows" ''
+          if [ ! -f Icon.png ]; then
+            echo "Cannot find Icon.png, did you run this in the right directory?"
+            exit 1
+          fi
 
+          exec ${fyne-cross}/bin/fyne-cross windows --app-id Rooster.Fixer --icon Icon.png
+        '';
       in {
         devShell = pkgs.mkShell {
           name = "devshell";
           buildInputs = with pkgs; [
             fyne-cross
+            buildScript
             libGL
             pkg-config
             xorg.libX11.dev
