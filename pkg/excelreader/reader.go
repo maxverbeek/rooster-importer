@@ -16,7 +16,33 @@ type ScheduleEntry struct {
 	Shift string
 }
 
+type NoEntriesFoundError struct {
+	sheets []string
+}
+
+func (e *NoEntriesFoundError) Error() string {
+
+	if len(e.sheets) == 1 {
+		return fmt.Sprintf("didn't find entries in sheet %s", e.sheets[0])
+	}
+
+	str := strings.Builder{}
+
+	str.WriteString("didn't find entries in sheets ")
+
+	for i, sheet := range e.sheets {
+		str.WriteString(sheet)
+
+		if i < len(e.sheets)-1 {
+			str.WriteString(", ")
+		}
+	}
+
+	return str.String()
+}
+
 var DateParseError error = errors.New("couldn't parse date")
+var NoEntriesInSheet error = errors.New("no entries found")
 
 func FindScheduleEntries(reader io.ReadCloser, name string) ([]ScheduleEntry, error) {
 	file, err := excelize.OpenReader(reader)
@@ -27,11 +53,39 @@ func FindScheduleEntries(reader io.ReadCloser, name string) ([]ScheduleEntry, er
 
 	sheets := file.GetSheetList()
 
-	if len(sheets) != 1 {
-		return nil, errors.New("ambiguous sheets (there isn't exactly 1 sheet, don't know which one to use). Make sure there is only 1 sheet in the file")
+	if len(sheets) == 0 {
+		return nil, errors.New("No sheets found in the Excel file")
 	}
 
-	rows, err := file.GetRows(sheets[0])
+	allEntries := []ScheduleEntry{}
+
+	noEntriesError := &NoEntriesFoundError{}
+
+	for _, sheet := range sheets {
+		entries, err := processSheet(file, sheet, name)
+
+		if err != nil {
+			if errors.Is(err, NoEntriesInSheet) {
+				noEntriesError.sheets = append(noEntriesError.sheets, sheet)
+			} else {
+				return nil, fmt.Errorf("error in processing sheet %s: %w", sheet, err)
+			}
+		}
+
+		allEntries = append(allEntries, entries...)
+	}
+
+	// ultimately, return all of the entries + optionally an error if any sheets did not yield any entries.
+	// if there are no sheets where we have a no entry found error, don't return an error at all
+	if len(noEntriesError.sheets) == 0 {
+		return allEntries, nil
+	}
+
+	return allEntries, noEntriesError
+}
+
+func processSheet(file *excelize.File, sheet string, name string) ([]ScheduleEntry, error) {
+	rows, err := file.GetRows(sheet)
 
 	if err != nil {
 		return nil, fmt.Errorf("error in iterating over rows: %w", err)
@@ -44,7 +98,8 @@ func FindScheduleEntries(reader io.ReadCloser, name string) ([]ScheduleEntry, er
 			continue
 		}
 
-		if mapping, ok := findDateRow(row, rowidx, file, sheets[0]); ok {
+		// While iterating over rows, check if the current row contains dates
+		if mapping, ok := findDateRow(row, rowidx, file, sheet); ok {
 			datemapping = mapping
 		}
 
@@ -73,7 +128,9 @@ func FindScheduleEntries(reader io.ReadCloser, name string) ([]ScheduleEntry, er
 		}
 	}
 
-	return nil, errors.New("nothing found")
+	// if we get here, the loop above didn't yield any entries..
+	// return a "no entries found" error
+	return nil, NoEntriesInSheet
 }
 
 func findDateRow(row []string, rowidx int, file *excelize.File, sheetName string) (map[int]time.Time, bool) {

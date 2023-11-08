@@ -31,8 +31,15 @@ func SelectedXlsxFileAction(file io.ReadCloser, filename string, username string
 		entries, err := excelreader.FindScheduleEntries(file, username)
 
 		if err != nil {
-			a.guistuff <- err
-			return
+			var noEntriesError *excelreader.NoEntriesFoundError
+
+			if errors.As(err, &noEntriesError) {
+				// no entry errors will be displayed as info, but won't halt the action
+				a.guistuff <- Information(err.Error())
+			} else {
+				a.guistuff <- err
+				return
+			}
 		}
 
 		events := []*ScheduleEvent{}
