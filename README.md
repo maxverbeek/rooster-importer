@@ -8,6 +8,7 @@ starts with a name) of which to imterpret cells as calendar events.
 The following table is an example of what the Excel file should look like
 
 | ... | ... | ... | ... |
+|-----|:---:|:---:|:---:|
 | ... | ... | ... | ... |
 | ... | 2023-01-10 | 2023-01-11 | 2023-01-12 |
 | ... | ... | ... | ... |
