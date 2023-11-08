@@ -11,7 +11,7 @@ This application can be built with `go build .`, or run with `go run main.go`. A
 X11 binaries. The idea is that this is also runnable on windows. Cross compilation can be done with `fyne-cross`. I used
 the following command:
 
-```
+```bash
 fyne-cross windows --app-id Rooster.Fixer --icon Icon.png
 
 # Using the build script that is also provided in the flake.nix:
