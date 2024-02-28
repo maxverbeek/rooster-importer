@@ -43,6 +43,8 @@
             xorg.libXxf86vm
             # libxkbcommon
             # wayland
+            libxkbcommon
+            wayland
           ];
         };
       });
