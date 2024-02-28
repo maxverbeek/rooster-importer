@@ -43,6 +43,7 @@ func (e *NoEntriesFoundError) Error() string {
 
 var DateParseError error = errors.New("couldn't parse date")
 var NoEntriesInSheet error = errors.New("no entries found")
+var NotAScheduleSheet error = errors.New("sheet does not contain dates")
 
 func FindScheduleEntries(reader io.ReadCloser, name string) ([]ScheduleEntry, error) {
 	file, err := excelize.OpenReader(reader)
@@ -65,7 +66,7 @@ func FindScheduleEntries(reader io.ReadCloser, name string) ([]ScheduleEntry, er
 		entries, err := processSheet(file, sheet, name)
 
 		if err != nil {
-			if errors.Is(err, NoEntriesInSheet) {
+			if errors.Is(err, NoEntriesInSheet) || errors.Is(err, NotAScheduleSheet) {
 				noEntriesError.sheets = append(noEntriesError.sheets, sheet)
 			} else {
 				return nil, fmt.Errorf("error in processing sheet %s: %w", sheet, err)
@@ -105,7 +106,7 @@ func processSheet(file *excelize.File, sheet string, name string) ([]ScheduleEnt
 
 		if strings.HasPrefix(row[0], name) {
 			if datemapping == nil {
-				return nil, errors.New(fmt.Sprintf("found %s before knowing the dates", name))
+				return nil, fmt.Errorf("found %s before knowing the dates: %w", name, NotAScheduleSheet)
 			}
 
 			// Construct a list of schedule entries
