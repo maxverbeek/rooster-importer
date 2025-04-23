@@ -80,6 +80,10 @@ func (ui *AppUI) SubscribeToApp(events <-chan interface{}) {
 				if newEventCount > 1 {
 					previewlines.WriteString(fmt.Sprintf("Last event: %s\n", state.EventsNotAlreadyInCalendar[newEventCount-1].Summary()))
 				}
+
+				for _, event := range state.EventsNotAlreadyInCalendar {
+					previewlines.WriteString(fmt.Sprintf("%s\n", event.Summary()))
+				}
 			}
 
 			if warningCount > 0 {

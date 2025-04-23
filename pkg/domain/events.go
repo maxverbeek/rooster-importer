@@ -46,7 +46,7 @@ func NewScheduleEvent(excelEntry string, date time.Time) (*ScheduleEvent, Conver
 	case "-":
 		fallthrough
 	case "-c":
-		conversion := ConversionConverted
+		conversion := ConversionVrij
 		if isWeekend {
 			conversion = ConversionSkipped
 		}
